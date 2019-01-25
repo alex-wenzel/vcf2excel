@@ -109,7 +109,7 @@ class Vcf2Excel:
 		self.md_keypairs = self.md_keypairs.append({'Name': key, 
 													'Value': value},
 								ignore_index=True)
-	
+
 	def multi_key_parse(self, line, fields):
 		"""
 		Returns a dict of key=value tokens for lines of type INFO, FORMAT,
