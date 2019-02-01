@@ -39,6 +39,8 @@ class Vcf2Excel:
 
         self.parse_headers()
 
+        self.var_df = self.build_variant_df()
+
         self.write_spreadsheet()
 
     """
@@ -146,6 +148,60 @@ class Vcf2Excel:
         raise NotImplementedError
 
     """
+    Build variant DF
+    """
+
+    def build_variant_df(self):
+        """
+        Builds a dataframe of variants. Columns include the basic VCF 
+        required columns as well as extra columns depending on the
+        number of INFO keys and the number of samples in FORMAT
+        """
+        ## Identify necessary columns
+        cols = ["CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER"]
+        ## get INFO columns
+        for sample in self.vcf.samples:
+            for info_key in self.md_info['ID']:
+                cols.append(sample+'_'+info_key)
+        
+        ## get FORMAT columns
+        for sample in self.vcf.samples:
+            for format_key in self.md_format['ID']:
+                cols.append(sample+'_'+format_key)
+        
+        ## generate empty data frame
+        var_df = pd.DataFrame(columns=cols)
+        
+        ## iterate over VCF and populate dataframe
+        for v in self.vcf:
+            new_rec = {
+                "CHROM": v.CHROM,
+                "POS": v.POS,
+                "ID": v.ID,
+                "REF": v.REF,
+                "ALT": v.ALT,
+                "QUAL": v.QUAL,
+                "FILTER": v.FILTER
+            }
+            for sample in self.vcf.samples:
+                s_indx = self.vcf.samples.index(sample)
+                for info_key in self.md_info['ID']:
+                    col = sample+'_'+info_key
+                    try:
+                        new_rec[col] = str(v.INFO.get(info_key))
+                    except KeyError:
+                        new_rec[col] = str(None)
+                for form_key in self.md_format['ID']:
+                    col = sample+'_'+form_key
+                    try:
+                        val = v.format(form_key)[s_indx]
+                        new_rec[col] = str(val)
+                    except TypeError:
+                        new_rec[col] = str(None)
+            var_df = var_df.append(new_rec, ignore_index=True)
+        return var_df
+
+    """
     Output data to spreadsheet
     """
 
@@ -157,6 +213,7 @@ class Vcf2Excel:
         """
         writer = pd.ExcelWriter(self.outpath, engine='xlsxwriter')
 
+        self.var_df.to_excel(writer, sheet_name='Variants')
         self.md_keypairs.to_excel(writer, sheet_name='File Metadata')
         self.md_info.to_excel(writer, sheet_name='INFO')
         self.md_filter.to_excel(writer, sheet_name='FILTER')
@@ -167,7 +224,6 @@ class Vcf2Excel:
         self.md_pedigree.to_excel(writer, sheet_name='PEDIGREE')
 
         writer.save()
-
 
 if __name__ == "__main__":
     try:
